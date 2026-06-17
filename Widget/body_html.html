@@ -1,0 +1,356 @@
+<div class="modern-chat-container" ng-class="{'is-collapsed': c.isCollapsed, 'is-mobile': c.isMobile}">
+
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+
+    <!-- TOAST ALERTS -->
+    <div class="toast-overlay" ng-if="c.showLimitAlert">
+        <div class="toast-card glass-card">
+            <i class="fa fa-exclamation-triangle"></i>
+            <span>{{c.limitAlertText}}</span>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar-panel glass-panel" ng-if="!c.isMobile || !c.isCollapsed">
+        <div class="sidebar-header">
+            <div class="header-content" ng-show="!c.isCollapsed">
+                <h3 class="panel-title">
+                  <span ng-if="c.activeConversation.number">{{c.activeConversation.number}}</span>
+                  <span ng-if="!c.activeConversation.number">{{::c.data.i18n.history}}</span>
+                </h3>
+                <span class="badge-count" ng-if="c.conversations.length > 0">{{c.conversations.length}}</span>
+            </div>
+            <div class="sidebar-actions">
+                <button class="icon-btn glow-effect" ng-click="c.startNewChat()" title="{{::c.data.i18n.start_new_chat}}">
+                    <i class="fa fa-plus"></i>
+                </button>
+                <button class="icon-btn toggle-sidebar-btn mobile-only" ng-click="c.toggleSidebar()" title="{{::c.data.i18n.toggle_sidebar}}">
+                    <i class="fa fa-chevron-left"></i>
+                </button>
+            </div>
+        </div>
+
+        <div ng-if="c.maxChatsReached && !c.isCollapsed" class="limit-alert-banner fade-in">
+            <i class="fa fa-info-circle"></i> {{::c.data.i18n.banner_limit_reached}}
+        </div>
+
+        <div class="conversation-list custom-scrollbar">
+            <div class="conversation-card"
+                ng-repeat="convo in c.conversations"
+                ng-class="{'active': convo.id === c.activeConversation.id, 'is-closed': !convo.isActive}"
+                ng-click="c.selectConversation(convo.id)">
+                <div class="avatar-wrapper">
+                    <div class="avatar-orbit" ng-if="convo.isActive"></div>
+                    <div class="avatar-initials" ng-if="convo.isActive">{{convo.avatar}}</div>
+                    <div class="avatar-initials" ng-if="!convo.isActive" style="color: #9ca3af;">
+                        <i class="fa fa-lock"></i>
+                    </div>
+                </div>
+                <div class="card-details">
+                    <div class="card-top">
+                        <span class="convo-name" ng-class="{'text-muted': !convo.isActive}">{{convo.name}}</span>
+
+                        <div class="convo-actions-menu">
+                            <button class="mini-btn menu-toggle" ng-click="c.toggleConvoMenu(convo.id, $event)" title="{{::c.data.i18n.options}}">
+                                <i class="fa fa-ellipsis-v"></i>
+                            </button>
+
+                            <div class="convo-menu-popover" ng-if="convo.id === c.activeMenuId" ng-click="$event.stopPropagation()">
+                                <div class="menu-item" ng-if="convo.isActive" ng-click="c.startRename(convo); $event.stopPropagation()">
+                                    <i class="fa fa-pencil"></i> {{::c.data.i18n.action_rename}}
+                                </div>
+                                <div class="menu-item delete-option" ng-if="convo.isActive" ng-click="c.deleteChat(convo.id, $event); $event.stopPropagation()">
+                                    <i class="fa fa-trash"></i> {{::c.data.i18n.action_close}}
+                                </div>
+                                <div class="menu-item" ng-if="!convo.isActive" style="cursor:default; color:#999; font-style:italic;">
+                                    {{::c.data.i18n.status_closed}}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="unread-dot" ng-if="convo.unread > 0"></span>
+                    </div>
+                    <div class="convo-preview">{{convo.lastMessage}}</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN WINDOW -->
+    <main class="chat-main-window" ng-if="!c.isMobile || c.isCollapsed">
+
+        <header class="chat-top-bar glass-header">
+            <div class="left-controls">
+                <button class="icon-btn mobile-back-btn mobile-only" ng-click="c.toggleSidebar()" title="{{::c.data.i18n.back}}">
+                    <i class="fa fa-arrow-left"></i>
+                </button>
+                <button class="icon-btn desktop-sidebar-toggle desktop-only" ng-click="c.toggleSidebar()" title="{{::c.data.i18n.toggle_sidebar}}">
+                    <i class="fa fa-bars"></i>
+                </button>
+
+                <div class="bot-identity">
+                    <div class="bot-avatar-container">
+                        <div class="bot-icon-placeholder pulsing-core" ng-class="{'gray-core': !c.activeConversation.isActive}">
+                            <img ng-src="{{::c.data.config.sidebar_avatar}}" alt="Agent Logo" style="width: 38px; height: 38px; border-radius: 50%;">
+                        </div>
+                        <div class="status-dot" ng-class="{'online': c.activeConversation.isActive, 'offline': !c.activeConversation.isActive}"></div>
+                    </div>
+                    <div class="bot-info">
+                        <h2 class="bot-name">{{::c.data.config.bot_name}}</h2>
+                        <span class="bot-status" ng-if="c.activeConversation.isActive">{{::c.data.i18n.status_online}}</span>
+                        <span class="bot-status" ng-if="!c.activeConversation.isActive">{{::c.data.i18n.status_session_closed}}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-controls">
+                <button class="pill-btn new-chat-pill" ng-click="c.startNewChat()" title="{{::c.data.i18n.start_new_chat}}">
+                    <i class="fa fa-plus"></i> <span class="desktop-only">{{::c.data.i18n.btn_new_chat}}</span>
+                </button>
+                <button class="icon-btn menu-btn" ng-click="c.toggleContactMenu()" title="{{::c.data.i18n.contact_options}}">
+                    <i class="fa fa-ellipsis-v"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="session-info-bar">
+            <div class="session-title-wrapper">
+                <span class="session-label" ng-if="c.activeConversation.number">{{c.activeConversation.number}}:</span>
+                <span class="session-label" ng-if="!c.activeConversation.number">{{::c.data.i18n.label_session}}:</span>
+
+                <h3 class="session-title" ng-if="!c.isRenaming">{{c.activeConversation.name}}</h3>
+
+                <input type="text"
+                    ng-if="c.isRenaming && c.activeConversation.isActive"
+                    ng-model="c.activeConversation.name"
+                    ng-blur="c.finishRename()"
+                    ng-keydown="c.handleRenameKeydown($event)"
+                    class="rename-input modern-input"
+                    auto-focus>
+            </div>
+            
+            <div class="convo-actions-menu session-actions" ng-if="c.activeConversation.id && c.isMobile">
+                <button class="mini-btn menu-toggle" ng-click="c.toggleSessionActionsMenu($event)">
+                    <i class="fa fa-ellipsis-v"></i>
+                </button>
+                <div class="convo-menu-popover" ng-if="c.showSessionMenu" ng-click="$event.stopPropagation()">
+                    <div class="menu-item" ng-if="c.activeConversation.isActive" ng-click="c.startRename(c.activeConversation); $event.stopPropagation()">
+                        <i class="fa fa-pencil"></i> {{::c.data.i18n.action_rename}}
+                    </div>
+                    <div class="menu-item delete-option" ng-if="c.activeConversation.isActive" ng-click="c.deleteChat(c.activeConversation.id); $event.stopPropagation()">
+                        <i class="fa fa-trash"></i> {{::c.data.i18n.action_close}}
+                    </div>
+                    <div class="menu-item" ng-if="!c.activeConversation.isActive">
+                        <i class="fa fa-lock"></i> {{::c.data.i18n.status_archived}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="messages-container custom-scrollbar" id="chat-messages-container" ng-if="!c.isLoading">
+            
+            <div class="message-wrapper fade-up"
+                ng-repeat="message in c.messages track by $index"
+                ng-class="message.type">
+
+                <div class="msg-avatar">
+                  <div class="avatar-circle" ng-class="message.type">
+                      <i class="fa fa-user" ng-if="message.type === 'user'"></i>
+                      <img ng-if="message.type === 'agent' || message.type === 'bot'" 
+                           ng-src="{{::c.data.config.chat_avatar}}" 
+                           alt="Agent Logo" 
+                           style="width: 34px; height: 34px; border-radius: 50%; object-fit: contain;">
+                  </div>
+              </div>
+
+                <div class="msg-content">
+                    <div class="msg-meta">
+                        <span class="sender-name">{{message.type === 'user' ? c.data.i18n.sender_you : c.data.config.bot_name}}</span>
+                        <span class="msg-time">{{message.timestamp}}</span>
+                    </div>
+
+                    <div class="msg-bubble markdown-body" 
+                        ng-if="!message.payload" 
+                        ng-bind-html="c.renderMarkdown(message.text)"></div>
+
+                    <div class="rich-payload-container" ng-if="message.payload">
+
+                        <div class="msg-bubble markdown-body" 
+                                ng-if="message.payload.action !== 'INCIDENT_CREATED' && message.payload.text"
+                                ng-bind-html="c.renderMarkdown(message.payload.text)"></div>
+
+                        <div ng-if="message.payload.action === 'SHOW_KB' && (message.payload.kb_suggestions || message.payload.items)" class="payload-grid kb-grid">
+                            <div ng-repeat="kb in (message.payload.kb_suggestions || message.payload.items)" class="kb-modern-card glass-shine">
+                                <a ng-href="{{kb.url || '#'}}" target="_blank" class="kb-link">
+                                    <div class="kb-icon-box"><i class="fa fa-book"></i></div>
+                                    <div class="kb-details">
+                                        <span class="kb-number">{{kb.number}}</span>
+                                        <span class="kb-title">{{kb.title}}</span>
+                                        <p class="kb-summary-text" ng-if="kb.summary">{{kb.summary}}</p>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div ng-if="message.payload.action === 'SHOW_CATALOG' && (message.payload.catalog_suggestions || message.payload.catalog_items)" class="payload-grid catalog-grid">
+                            <div ng-repeat="item in (message.payload.catalog_suggestions || message.payload.catalog_items)" class="catalog-card glass-shine">
+                                <a ng-href="{{item.url || '#'}}" target="_blank" class="catalog-link">
+                                    <div class="catalog-media">
+                                        <img ng-if="item.image_url" ng-src="{{item.image_url}}" alt="item" class="catalog-image" />
+                                        <div class="catalog-placeholder" ng-if="!item.image_url"><i class="fa fa-shopping-bag"></i></div>
+                                    </div>
+                                    <div class="catalog-body">
+                                        <div class="catalog-header-line">
+                                            <span class="catalog-name">{{item.name}}</span>
+                                            <span class="catalog-category" ng-if="item.category">{{item.category}}</span>
+                                        </div>
+                                        <p class="catalog-desc" ng-if="item.short_description">{{item.short_description}}</p>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div ng-if="message.payload.action === 'BRANCH_QA'" class="branch-qa-modern">
+                            <div class="chip-container" ng-if="message.payload.slots">
+                                <div class="info-chip" ng-repeat="(key, val) in message.payload.slots" ng-if="val && key !== 'short_description' && key !== 'description' && key !== 'qa_q1' && key !== 'qa_q2' && key !== 'qa_q3' && key !== 'qa_q4'">
+                                    <span style="opacity:0.7; text-transform:capitalize;">{{key.replace('u_', '').replace('_', ' ')}}:</span> {{val}}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div ng-if="message.payload.action === 'ASK_CONFIRM'" class="confirm-card glass-card glass-shine">
+                                <div class="card-header-accent">{{::c.data.i18n.card_confirm_title}}</div>
+                                <div class="confirm-grid-layout">
+                                    <div class="conf-row full" ng-if="message.payload.confirm_INC_Creation.short_description">
+                                        <span class="conf-label">{{::c.data.i18n.label_summary}}</span>
+                                        <span class="conf-val highlight">{{message.payload.confirm_INC_Creation.short_description}}</span>
+                                    </div>
+                                    <div class="conf-dynamic-grid">
+                                        <div class="conf-col" ng-repeat="(key, val) in message.payload.confirm_INC_Creation" ng-if="key !== 'short_description' && key !== 'description' && val">
+                                            <span class="conf-label">{{key.replace('u_', '').replace(/_/g, ' ')}}</span>
+                                            <span class="conf-val">{{val}}</span>
+                                        </div>
+                                    </div>
+                                    <div class="conf-row full" ng-if="message.payload.confirm_INC_Creation.description">
+                                        <span class="conf-label">{{::c.data.i18n.label_description}}</span>
+                                        <span class="conf-val text-muted">{{message.payload.confirm_INC_Creation.description}}</span>
+                                    </div>
+                                </div>
+
+                                <div class="action-buttons" ng-if="!message.payload.action_processed && c.activeConversation.isActive">
+                                    <button class="btn-neon-primary" ng-click="c.handleBotAction('confirm', message.payload)">{{::c.data.i18n.btn_confirm}}</button>
+                                    <button class="btn-neon-secondary" ng-click="c.handleBotAction('cancel', message.payload)">{{::c.data.i18n.btn_cancel}}</button>
+                                </div>
+                                <div class="action-buttons" ng-if="!message.payload.action_processed && !c.activeConversation.isActive">
+                                     <span style="color:#94a3b8; font-style:italic;">{{::c.data.i18n.status_actions_disabled}}</span>
+                                </div>
+
+                                <div ng-if="message.payload.action_processed" style="text-align:center; padding:10px; color:#94a3b8; font-style:italic;">
+                                    <i class="fa fa-check-circle"></i> {{::c.data.i18n.status_selection_confirmed}}
+                                </div>
+                        </div>
+                            
+                        <div ng-if="message.payload.action === 'INCIDENT_CREATED'" class="success-card glass-card fade-up">
+                            <div class="success-header">
+                                <div class="success-icon-pulse"><i class="fa fa-check"></i></div>
+                                <div class="success-details">
+                                    <span class="success-label">{{::c.data.i18n.label_success}}</span>
+                                    <span class="success-message">{{message.payload.text}}</span>
+                                </div>
+                            </div>
+                            <div ng-if="message.payload.incident" style="margin-top:5px; padding-left: 42px;">
+                                <div style="font-size:0.8rem; color:#cbd5e1;">{{::c.data.i18n.label_ticket}}: <b>{{message.payload.incident.number}}</b></div>
+                            </div>
+                            <a ng-if="message.payload.incident.url" ng-href="{{message.payload.incident.url}}" target="_blank" class="view-record-btn">
+                                <span>{{::c.data.i18n.btn_view_ticket}}</span> <i class="fa fa-external-link"></i>
+                            </a>
+                        </div>
+                            
+                        <div ng-if="message.payload.action === 'ERROR'" class="error-card" style="color:#fca5a5; padding:10px;">
+                            <i class="fa fa-exclamation-circle"></i> <span>{{message.payload.text}}</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="message-wrapper bot" ng-if="c.isBotTyping">
+                <div class="msg-avatar">
+                  <div class="avatar-circle bot pulsing-core">
+                      <img ng-src="{{::c.data.config.chat_avatar}}" alt="Agent Logo" style="width: 32px; height: 32px; border-radius: 50%; object-fit: contain;">
+                  </div>
+              </div>
+                <div class="msg-content">
+                    <div class="msg-meta"><span class="sender-name">{{::c.data.config.bot_name}}</span> <span class="msg-time">{{::c.data.i18n.status_thinking}}</span></div>
+                    <div class="msg-bubble glass skeleton-bubble">
+                        <div class="skeleton-line width-75"></div>
+                        <div class="skeleton-line width-50"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading-screen" ng-if="c.isLoading">
+            <div class="spinner-modern"></div>
+            <span>{{::c.data.i18n.status_loading}}</span>
+        </div>
+
+        <div class="input-dock glass-dock" ng-if="!c.isLoading && c.activeConversation.isActive">
+            <div class="input-wrapper">
+                <textarea 
+                    id="chat-textarea"
+                    class="modern-chat-input auto-grow" 
+                    placeholder="{{::c.data.i18n.input_placeholder}}"
+                    ng-model="c.newMessageText"                     
+                    ng-model-options="{debounce: 300}"
+                    ng-keydown="c.handleKeydown($event)"
+                    rows="1"></textarea>
+                <button class="send-fab" ng-click="c.sendMessage()" ng-disabled="!c.newMessageText" title="{{::c.data.i18n.btn_send}}">
+                    <i class="fa fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="closed-session-banner glass-dock" ng-if="!c.isLoading && !c.activeConversation.isActive">
+            <div class="closed-content">
+                <i class="fa fa-lock"></i>
+                <span>{{::c.data.i18n.banner_closed_session}}</span>
+            </div>
+        </div>
+
+        <div class="contact-modal" ng-if="c.showContactMenu">
+            <div class="modal-glass">
+                <div class="modal-header">
+                    <h3>{{::c.data.i18n.modal_support_title}}</h3>
+                    <button class="close-icon" ng-click="c.toggleContactMenu()" title="{{::c.data.i18n.btn_close_menu}}"><i class="fa fa-times"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="menu-option disabled"><i class="fa fa-comments"></i> <span>{{::c.data.i18n.menu_live_agent}}</span></div>
+                    
+                    <a ng-if="c.data.config.support_email" ng-href="mailto:{{::c.data.config.support_email}}" class="menu-option">
+                        <i class="fa fa-envelope"></i> <span>{{::c.data.i18n.menu_email}}</span>
+                    </a>
+                    <a ng-if="c.data.config.support_phone" ng-href="tel:{{::c.data.config.support_phone}}" class="menu-option">
+                        <i class="fa fa-phone"></i> <span>{{::c.data.i18n.menu_phone}}</span>
+                    </a>
+                    <a ng-href="{{::c.data.config.full_page_url}}" target="_blank" class="menu-option">
+                        <i class="fa fa-expand"></i> <span>{{::c.data.i18n.menu_full_page}}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay-backdrop fade-in" ng-if="c.showMessageOverlay.visible">
+            <div class="confirm-dialog glass-card">
+                <div class="dialog-icon"><i class="fa fa-trash"></i></div>
+                <h3>{{c.showMessageOverlay.text1}}</h3>
+                <p>{{c.showMessageOverlay.text2}}</p>
+                <div class="dialog-actions">
+                    <button class="btn-neon-danger" ng-if="c.showMessageOverlay.confirmAction" ng-click="c.showMessageOverlay.confirmAction()">{{c.showMessageOverlay.confirmLabel}}</button>
+                    <button class="btn-neon-secondary" ng-click="c.hideMessageOverlay()">{{::c.data.i18n.btn_cancel_dialog}}</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
