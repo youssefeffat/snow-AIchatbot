@@ -27,7 +27,9 @@ GeoVAConversationService.prototype = {
             max_active_chats: 3,
             max_closed_chats: 7,
             gateway_url: gs.getProperty('global.gateway_url', 'https://dev-agent-snow-corp-ais-dev.apps.ic2dr6fr.westeurope.aroapp.io/api/v1/chat'),
-            gateway_timeout: 20000
+            gateway_timeout: 20000,
+            include_history: true,
+            history_limit: 10
         };
         this.config = global.JSUtil.notNil(config) ? config : defaultConfig;
 
@@ -267,6 +269,56 @@ GeoVAConversationService.prototype = {
     },
 
     /**
+     * Handles submitting an approval decision to the AI Gateway.
+     *
+     * @param {string} conversationSysId - The Sys ID of the conversation.
+     * @param {string} decisionType - The decision ('approve', 'reject', etc.).
+     * @returns {object} An object containing the bot's reply.
+     */
+    submitApproval: function (conversationSysId, decisionType) {
+        var result = {
+            bot_message_content: null,
+            updated_conversation_name: null,
+            conversation_number: null
+        };
+
+        if (!conversationSysId || !decisionType) {
+            result.bot_message_content = JSON.stringify({
+                data: { action: 'ERROR', text: 'Invalid approval request' },
+                status: 'completed'
+            });
+            return result;
+        }
+
+        var convGr = new GlideRecord(this.tables.conv);
+        if (!convGr.get(conversationSysId) || (convGr.getValue('u_user') !== this.userID && !gs.hasRole('admin'))) {
+            result.bot_message_content = JSON.stringify({
+                data: { action: 'ERROR', text: 'Access denied or not found' },
+                status: 'completed'
+            });
+            return result;
+        }
+
+        var displayDecision = decisionType === 'approve' ? 'Decision: Approved' : 'Decision: Rejected';
+        this._insertUserMessage(conversationSysId, displayDecision);
+
+        var payload = {
+            decisions: [{ type: decisionType }],
+            metadata: {
+                session_id: conversationSysId,
+                user_id: this.userID
+            }
+        };
+
+        var botReply = this._executeRestRequest('approve', payload);
+
+        this._insertAgentMessage(conversationSysId, botReply);
+        result.bot_message_content = botReply;
+
+        return result;
+    },
+
+    /**
      * Fetches all initial data required for the widget to load.
      *
      * @param {string} [activeSysId] - The Sys ID of the conversation to make active.
@@ -328,109 +380,36 @@ GeoVAConversationService.prototype = {
         convGr.update();
     },
 
-    // _buildHistoryArray: function(conversationSysId) {
-    //     var history = [];
-    //     var msgGr = new GlideRecord(this.tables.msg);
-    //     msgGr.addQuery('u_conversation', conversationSysId);
-    //     msgGr.addQuery('u_sender_type', 'IN', 'user,agent');
-    //     msgGr.orderBy('sys_created_on');
-    //     msgGr.query();
-
-    //     while (msgGr.next()) {
-    //         var senderType = msgGr.getValue('u_sender_type');
-    //         var rawText = msgGr.getValue('u_payload') || '';
-    //         var role = senderType === 'agent' ? 'assistant' : 'user';
-    //         var content = rawText;
-
-    //         if (senderType === 'agent') {
-    //             var payload = this._parseJsonSafe(rawText);
-    //             if (payload && payload.text) content = payload.text;
-    //         }
-
-    //         history.push({
-    //             role: role,
-    //             content: (content || '').replace(/<[^>]*>?/gm, '')
-    //         });
-    //     }
-
-    //     return history;
-    // },
-
-    // /**
-    //  * Retrieves the most recent "slots" (extracted entities) from the conversation history.
-    //  * Slots are pieces of information the AI has identified, like a category or priority.
-    //  *
-    //  * @param {string} conversationSysId - The Sys ID of the conversation.
-    //  * @param {number} [limit=5] - The number of recent messages to search for slots.
-    //  * @returns {object} The most recently found slots object.
-    //  */
-    // _getLastSlots: function(conversationSysId, limit) {
-    //     var slots = {};
-    //     var searchLimit = limit || 5;
-    //     var msgGr = new GlideRecord(this.tables.msg);
-    //     msgGr.addQuery('u_conversation', conversationSysId);
-    //     msgGr.addQuery('u_sender_type', 'agent');
-    //     msgGr.orderByDesc('sys_created_on');
-    //     msgGr.setLimit(searchLimit);
-    //     msgGr.query();
-
-    //     while (msgGr.next()) {
-    //         var payload = this._parseJsonSafe(msgGr.getValue('u_payload'));
-    //         if (payload && payload.slots) return payload.slots;
-    //     }
-
-    //     return slots;
-    // },
-
     _callAIGateway: function (convSysId, userText, forceTool, forceArguments) {
-        var LOG_KEY = 'GeoVA-API-LOG';
-        // Build payload according to the required schema
         var payload = {
             instruction: userText,
             data: {},
             metadata: {
                 session_id: convSysId,
                 user_id: this.userID,
-                include_history: true,
-                history_limit: 10
+                include_history: this.config.include_history,
+                history_limit: this.config.history_limit
             }
         };
-        // Optionally, you can add forceTool/forceArguments if needed in metadata or data
+        
         if (forceTool) {
             payload.metadata.force_tool = forceTool;
         }
         if (forceArguments) {
             payload.metadata.force_arguments = forceArguments;
         }
-        // var payload = {
-        //     session_id: convSysId,
-        //     user_id: this.userID,
-        //     message: userText,
-        //     context: {
-        //         locale: gs.getSession().getLanguage() || 'en',
-        //         source: 'portal',
-        //         user_name: gs.getUserName()
-        //     },
-        //     history: this._buildHistoryArray(convSysId),
-        //     slots: this._getLastSlots(convSysId),
-        //     force_tool: forceTool || null,
-        //     force_arguments: forceArguments || null
-        // };
 
+        return this._executeRestRequest('send_user_prompt', payload);
+    },
+
+    _executeRestRequest: function(restMethod, payload) {
+        var LOG_KEY = 'GeoVA-API-LOG';
         try {
-            gs.log(LOG_KEY + ' | Sending API request to: ' + this.config.gateway_url, 'GeoVA');
+            gs.log(LOG_KEY + ' | Sending API request with method: ' + restMethod, 'GeoVA');
             gs.log(LOG_KEY + ' | Request Body: ' + JSON.stringify(payload), 'GeoVA');
 
-            // var r = new sn_ws.RESTMessageV2('ai_agents_gateway', 'send_user_prompt');
-            // r.setStringParameterNoEscape('base_url', this.config.gateway_url);
-            // r.setRequestBody(JSON.stringify(payload));
-            // r.setHttpTimeout(this.config.gateway_timeout);
-
-            var r = new sn_ws.RESTMessageV2();
-            r.setEndpoint("https://bestby-backend.onrender.com/portal/agent");
-            r.setHttpMethod('post');
-            // if (data.config.mid_server) r.setMIDServer(data.config.mid_server);
-            r.setRequestHeader('Content-Type', 'application/json');
+            var r = new sn_ws.RESTMessageV2('ai_agents_gateway', restMethod);
+            r.setStringParameterNoEscape('base_url', this.config.gateway_url);
             r.setRequestBody(JSON.stringify(payload));
             r.setHttpTimeout(this.config.gateway_timeout);
 
@@ -442,7 +421,7 @@ GeoVAConversationService.prototype = {
             gs.log(LOG_KEY + ' | API Response Body: ' + body, 'GeoVA');
 
             if (status < 200 || status >= 300) {
-                gs.error(LOG_KEY + ' | GeoVAConversationService._callAIGateway returned HTTP status ' + status + '. Body: ' + body, 'GeoVA');
+                gs.error(LOG_KEY + ' | HTTP status ' + status + '. Body: ' + body, 'GeoVA');
                 return JSON.stringify({
                     data: { action: 'ERROR', text: 'AI gateway returned HTTP status ' + status + '.' },
                     status: 'completed'
@@ -450,7 +429,7 @@ GeoVAConversationService.prototype = {
             }
 
             if (!this._parseJsonSafe(body)) {
-                gs.error(LOG_KEY + ' | GeoVAConversationService._callAIGateway received invalid JSON response: ' + body, 'GeoVA');
+                gs.error(LOG_KEY + ' | Invalid JSON response: ' + body, 'GeoVA');
                 return JSON.stringify({
                     data: { action: 'ERROR', text: 'Invalid AI response' },
                     status: 'completed'
@@ -459,7 +438,7 @@ GeoVAConversationService.prototype = {
 
             return body;
         } catch (ex) {
-            gs.error(LOG_KEY + ' | GeoVAConversationService._callAIGateway failed: ' + ex.message, 'GeoVA');
+            gs.error(LOG_KEY + ' | _executeRestRequest failed: ' + ex.message, 'GeoVA');
             return JSON.stringify({
                 data: { action: 'ERROR', text: 'Internal Error: ' + ex.message },
                 status: 'completed'

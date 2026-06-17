@@ -30,6 +30,9 @@
             case 'create_new_conversation':
                 response = convService.createConversation(input.name);
                 break;
+            case 'submit_approval':
+                response = convService.submitApproval(input.conversation_id, input.decision_type);
+                break;
             case 'disable_conversation':
                 response = {
                     success: convService.disableConversation(input.sys_id)
