@@ -29,9 +29,12 @@ GeoVAConversationService.prototype = {
             gateway_url: gs.getProperty('global.gateway_url', 'https://dev-agent-snow-corp-ais-dev.apps.ic2dr6fr.westeurope.aroapp.io/api/v1/chat'),
             gateway_timeout: 20000,
             include_history: true,
-            history_limit: 10
+            history_limit: 10,
+            mid_server: gs.getProperty('global.geova.mid_server', '')
         };
         this.config = global.JSUtil.notNil(config) ? config : defaultConfig;
+        
+        this.authService = new GeoVAAuthService();
 
         var defaultTables = {
             conv: 'u_geo_va_conversation',
@@ -412,6 +415,16 @@ GeoVAConversationService.prototype = {
             r.setStringParameterNoEscape('base_url', this.config.gateway_url);
             r.setRequestBody(JSON.stringify(payload));
             r.setHttpTimeout(this.config.gateway_timeout);
+
+            if (this.config.mid_server) {
+                r.setMIDServer(this.config.mid_server);
+            }
+
+            var accessToken = this.authService.getAccessToken();
+            if (accessToken) {
+                r.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+            }
+            r.setRequestHeader('Accept', 'application/json');
 
             var response = r.execute();
             var status = response.getStatusCode();
